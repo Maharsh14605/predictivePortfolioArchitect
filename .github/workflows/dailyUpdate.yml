@@ -1,0 +1,38 @@
+name: Daily Market Data Update
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  updateDataAndModels:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run daily update
+        run: |
+          python updateDaily.py
+
+      - name: Commit updated database and models
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add data/ models/
+          git commit -m "Update market data and retrain models" || echo "No changes to commit"
+          git push
