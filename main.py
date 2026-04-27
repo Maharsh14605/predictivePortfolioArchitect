@@ -20,13 +20,15 @@ def main():
     expectedReturns = {}
 
     for ticker, stockData in featureData.items():
-        model, expectedReturn, metrics = trainModelForStock(stockData)
+        model, expectedReturn, metrics, modelName, modelResultsTable = trainModelForStock(stockData)
 
         expectedReturns[ticker] = expectedReturn
 
         print(f"{ticker}")
-        print(f"  Predicted next-day return: {expectedReturn:.5f}")
+        print(f"  Best model: {modelName}")
+        print(f"  Predicted 21-day return: {expectedReturn:.5f}")
         print(f"  MAE: {metrics['mae']:.5f}")
+        print(f"  RMSE: {metrics['rmse']:.5f}")
         print(f"  R2: {metrics['r2']:.5f}")
 
     weights = calculateWeights(

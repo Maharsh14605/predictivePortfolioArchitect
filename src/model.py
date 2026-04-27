@@ -1,22 +1,58 @@
 from pathlib import Path
 
 import joblib
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, r2_score
+import pandas as pd
+
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
+from sklearn.linear_model import Ridge
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 featureColumns = [
     "dailyReturn",
+    "return5",
+    "return10",
+    "return21",
     "movingAverage7",
     "movingAverage21",
-    "returnAverage7",
-    "volatility21",
+    "movingAverage50",
+    "movingAverage200",
     "priceVsMovingAverage7",
-    "priceVsMovingAverage21"
+    "priceVsMovingAverage21",
+    "priceVsMovingAverage50",
+    "priceVsMovingAverage200",
+    "volatility7",
+    "volatility21",
+    "volatility63",
+    "returnAverage7",
+    "returnAverage21",
+    "rsi14",
+    "macd",
+    "macdSignal",
+    "macdHistogram",
+    "drawdown"
 ]
 
 
 modelDirectory = Path("models/savedModels")
+
+
+def createCandidateModels():
+    return {
+        "Random Forest": RandomForestRegressor(
+            n_estimators=300,
+            max_depth=8,
+            min_samples_leaf=5,
+            random_state=42
+        ),
+        "Gradient Boosting": GradientBoostingRegressor(
+            n_estimators=250,
+            learning_rate=0.03,
+            max_depth=3,
+            random_state=42
+        ),
+        "Ridge Regression": Ridge(alpha=1.0)
+    }
 
 
 def trainModelForStock(stockData):
@@ -31,25 +67,52 @@ def trainModelForStock(stockData):
     xTest = testingData[featureColumns]
     yTest = testingData["target"]
 
-    model = RandomForestRegressor(
-        n_estimators=200,
-        max_depth=6,
-        random_state=42
-    )
+    candidateModels = createCandidateModels()
 
-    model.fit(xTrain, yTrain)
+    bestModel = None
+    bestModelName = None
+    bestMetrics = None
+    bestMae = float("inf")
 
-    predictions = model.predict(xTest)
+    modelResults = []
 
-    metrics = {
-        "mae": mean_absolute_error(yTest, predictions),
-        "r2": r2_score(yTest, predictions)
+    baselinePrediction = [yTrain.mean()] * len(yTest)
+
+    baselineMetrics = {
+        "modelName": "Baseline Average",
+        "mae": mean_absolute_error(yTest, baselinePrediction),
+        "rmse": mean_squared_error(yTest, baselinePrediction) ** 0.5,
+        "r2": r2_score(yTest, baselinePrediction)
     }
 
-    latestFeatures = stockData[featureColumns].iloc[[-1]]
-    expectedReturn = model.predict(latestFeatures)[0]
+    modelResults.append(baselineMetrics)
 
-    return model, expectedReturn, metrics
+    for modelName, model in candidateModels.items():
+        model.fit(xTrain, yTrain)
+
+        predictions = model.predict(xTest)
+
+        metrics = {
+            "modelName": modelName,
+            "mae": mean_absolute_error(yTest, predictions),
+            "rmse": mean_squared_error(yTest, predictions) ** 0.5,
+            "r2": r2_score(yTest, predictions)
+        }
+
+        modelResults.append(metrics)
+
+        if metrics["mae"] < bestMae:
+            bestMae = metrics["mae"]
+            bestModel = model
+            bestModelName = modelName
+            bestMetrics = metrics
+
+    latestFeatures = stockData[featureColumns].iloc[[-1]]
+    expectedReturn = bestModel.predict(latestFeatures)[0]
+
+    modelResultsTable = pd.DataFrame(modelResults)
+
+    return bestModel, expectedReturn, bestMetrics, bestModelName, modelResultsTable
 
 
 def saveModel(model, ticker):
@@ -69,16 +132,18 @@ def loadModel(ticker):
     return joblib.load(filePath)
 
 
-def predictWithSavedModel(ticker, stockData):
-    model = loadModel(ticker)
+def getFeatureImportance(model):
+    if not hasattr(model, "feature_importances_"):
+        return pd.DataFrame()
 
-    if model is None:
-        model, expectedReturn, metrics = trainModelForStock(stockData)
-        saveModel(model, ticker)
+    importanceTable = pd.DataFrame({
+        "Feature": featureColumns,
+        "Importance": model.feature_importances_
+    })
 
-        return expectedReturn, metrics
+    importanceTable = importanceTable.sort_values(
+        by="Importance",
+        ascending=False
+    )
 
-    latestFeatures = stockData[featureColumns].iloc[[-1]]
-    expectedReturn = model.predict(latestFeatures)[0]
-
-    return expectedReturn, None
+    return importanceTable

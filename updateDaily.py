@@ -1,4 +1,4 @@
-from src.dataLoader import downloadPrices, calculateDailyReturns
+from src.dataLoader import downloadPrices
 from src.database import savePricesToDatabase, loadPricesFromDatabase
 from src.features import createFeatureData
 from src.model import trainModelForStock, saveModel
@@ -11,7 +11,10 @@ defaultTickers = [
     "AAPL",
     "MSFT",
     "AMZN",
-    "GOOGL"
+    "GOOGL",
+    "NVDA",
+    "JPM",
+    "V"
 ]
 
 
@@ -35,7 +38,6 @@ def retrainModels(tickers):
     if prices.empty:
         raise ValueError("No prices found in database.")
 
-    dailyReturns = calculateDailyReturns(prices)
     featureData = createFeatureData(prices)
 
     print("Retraining models...")
@@ -43,19 +45,21 @@ def retrainModels(tickers):
     results = {}
 
     for ticker, stockData in featureData.items():
-        model, expectedReturn, metrics = trainModelForStock(stockData)
+        model, expectedReturn, metrics, modelName, modelResultsTable = trainModelForStock(stockData)
 
         saveModel(model, ticker)
 
         results[ticker] = {
             "expectedReturn": expectedReturn,
+            "bestModel": modelName,
             "mae": metrics["mae"],
+            "rmse": metrics["rmse"],
             "r2": metrics["r2"]
         }
 
         print(
-            f"{ticker}: expectedReturn={expectedReturn:.5f}, "
-            f"mae={metrics['mae']:.5f}, r2={metrics['r2']:.5f}"
+            f"{ticker}: bestModel={modelName}, expectedReturn={expectedReturn:.5f}, "
+            f"mae={metrics['mae']:.5f}, rmse={metrics['rmse']:.5f}, r2={metrics['r2']:.5f}"
         )
 
     return results
