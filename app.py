@@ -146,7 +146,7 @@ try:
         lambda value: f"${value:,.2f}"
     )
 
-    st.dataframe(allocation, use_container_width=True)
+    st.dataframe(allocation, width="stretch")
 
     st.subheader("Model Prediction Results")
 
@@ -157,7 +157,7 @@ try:
         "R2": [modelMetrics[ticker]["r2"] for ticker in expectedReturns]
     })
 
-    st.dataframe(predictionTable, use_container_width=True)
+    st.dataframe(predictionTable, width="stretch")
 
     st.subheader("Strategy Performance Backtest")
 
